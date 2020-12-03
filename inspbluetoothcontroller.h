@@ -17,6 +17,7 @@ private:
     QBluetoothDeviceDiscoveryAgent *discoveryAgent;
     QProcess *bluetoothProcess;
     int AutoIncrementingIDNumber = 0;
+public:
     struct bluetoothDevices
     {
         int id;
@@ -24,14 +25,19 @@ private:
         QBluetoothAddress bluetoothAddress;
         QBluetoothLocalDevice::Pairing bluetoothParingStatus; // 0 = unpaired 1= paired 2= paired and trusted
     };
-public:
     explicit InspBluetoothController(QObject *parent = nullptr);
     QVector<bluetoothDevices> *DiscoveredDevices;
     bool IsBluetoothDeviceConnected = false;
 
 signals:
-    void isDeviceConnected(bool ConnectionStatus);
-    void isDevicePaired(bool PairedStatus);
+    /** 0= connected or paired
+    ///  1= Error: Device Not Found
+    ///  2= Error: Could Not Start Service
+    ///  3= Error: Device Already Connected
+    ///  4= Error: Device Not Paired
+    */
+    void isDeviceConnected(int connectionStatus);
+    void isDevicePaired(int pairedStatus);
     void isDeviceScanningComplete(QVector<bluetoothDevices> btDevices);
 
 public slots:
@@ -39,8 +45,8 @@ public slots:
     void deviceDiscovered(const QBluetoothDeviceInfo &device);
     void startBTDiscovery();
     void DisconnectFromDevice(bluetoothDevices btDevice);
-    void PairToDevice(bluetoothDevices btDevice);
-    void ConnectToDevice(bluetoothDevices btDevice);
+    void PairToDevice(QBluetoothAddress btDeviceAddress);
+    void ConnectToDevice(QBluetoothAddress btDeviceAddress);
 };
 
 #endif // INSPBLUETOOTHCONTROLLER_H

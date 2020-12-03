@@ -11,8 +11,7 @@ InspBluetoothController::InspBluetoothController(QObject *parent) : QObject(pare
     DiscoveredDevices = new QVector<bluetoothDevices>; ///QVectory Of the bluetooth devices struct to store all scanned devices in
     bluetoothProcess = new QProcess(this); ///Creation of QProccess to be used for bluetooth connection and disconnection
     bluetoothProcess->setProgram("bluetoothctl"); ///binding created qprocess to bluetoothctl command line
-    bluetoothProcess->start(); ///starting the proccess and attaching to bluetoothctl for later use
-    bluetoothProcess->waitForStarted(30); ///holding any processes for 20 micro seconds to make sure binding is complete
+
     connect(discoveryAgent, SIGNAL(deviceDiscovered(QBluetoothDeviceInfo)),
             this, SLOT(deviceDiscovered(QBluetoothDeviceInfo))); ///binding discovery agent when device is found to function for found devices
     connect(discoveryAgent, SIGNAL(finished()),this, SLOT(finishedBTDiscovery())); /// binding discovery agent when finished to finished scanning function
@@ -48,7 +47,8 @@ void InspBluetoothController::startBTDiscovery()
  */
 void InspBluetoothController::deviceDiscovered(const QBluetoothDeviceInfo &device)
 {
-    if(device.AudioService){
+    if(device.serviceClasses().testFlag(QBluetoothDeviceInfo::AudioService)){
+        qDebug() << "Name: " << device.name() << "Class: " << device.serviceClasses();
         DiscoveredDevices->append(bluetoothDevices{AutoIncrementingIDNumber, device.name(), device.address(), localDevice->pairingStatus(device.address())});
         AutoIncrementingIDNumber ++;
     }
@@ -79,24 +79,30 @@ void InspBluetoothController::finishedBTDiscovery()
  * If device has paired successfully we emmit a signal isDevicePaired with a true flag.
  * If device does not pair successfully we emmit a signal isDevicePaired with a false flag.
  */
-void InspBluetoothController::PairToDevice(bluetoothDevices btDevice)
+void InspBluetoothController::PairToDevice(QBluetoothAddress btDeviceAddress)
 {
     qDebug() << "********** ATTEMPTING PAIRING **********";
     QString bluetoothProcess_stdout, bluetoothProcess_stderr;
-    bluetoothProcess->write(QString("pair %1\n").arg(btDevice.bluetoothAddress.toString()).toUtf8());
+    bluetoothProcess->start(); ///starting the proccess and attaching to bluetoothctl for later use
+    bluetoothProcess->waitForStarted(); ///holding any processes for 20 micro seconds to make sure binding is complete
+    bluetoothProcess->write(QString("pair %1\n").arg(btDeviceAddress.toString()).toUtf8());
     bluetoothProcess->waitForFinished(30);
     bluetoothProcess_stdout = bluetoothProcess->readAllStandardOutput();
     bluetoothProcess_stderr = bluetoothProcess->readAllStandardError();
+    qDebug() << bluetoothProcess_stdout;
+    qDebug() << bluetoothProcess_stderr;
     if(bluetoothProcess_stdout.contains("not available"))
     {
         qDebug() << "Device Can Not Be Found!";
-        emit isDevicePaired(false);
+        emit isDevicePaired(1);
+        bluetoothProcess->close();
     }
-    if(bluetoothProcess_stdout.contains("Paring Successful") || bluetoothProcess_stdout.contains("AlreadyExists"))
+    if(bluetoothProcess_stdout.contains("Paring Successful") || bluetoothProcess_stdout.contains("Already Exists"))
     {
         qDebug() << "Device Has Been Paired Successfully";
-        emit isDevicePaired(true);
-        btDevice.bluetoothParingStatus = QBluetoothLocalDevice::Paired;
+        emit isDevicePaired(0);
+        bluetoothProcess->close();
+        //btDevice.bluetoothParingStatus = QBluetoothLocalDevice::Paired;
     }
 }
 /** This function is used to Connect bluetooth devices.
@@ -110,23 +116,29 @@ void InspBluetoothController::PairToDevice(bluetoothDevices btDevice)
  * If device has connected successfully we emmit a signal isDeviceConnected with a true flag.
  * If device does not connected successfully we emmit a signal isDeviceConnected with a false flag.
  */
-void InspBluetoothController::ConnectToDevice(bluetoothDevices btDevice)
+void InspBluetoothController::ConnectToDevice(QBluetoothAddress btDeviceAddress)
 {
     qDebug() << "********** ATTEMPTING CONNECTION **********";
     QString bluetoothProcess_stdout, bluetoothProcess_stderr;
-    bluetoothProcess->write(QString("connect %1\n").arg(btDevice.bluetoothAddress.toString()).toUtf8());
-    bluetoothProcess->waitForFinished(30);
+    bluetoothProcess->start(); ///starting the proccess and attaching to bluetoothctl for later use
+    bluetoothProcess->waitForStarted(); ///holding any processes for 20 micro seconds to make sure binding is complete
+    bluetoothProcess->write(QString("connect %1 \n").arg(btDeviceAddress.toString()).toUtf8());
+    bluetoothProcess->waitForFinished();
     bluetoothProcess_stdout = bluetoothProcess->readAllStandardOutput();
     bluetoothProcess_stderr = bluetoothProcess->readAllStandardError();
+    qDebug() << bluetoothProcess_stdout;
+    qDebug() << bluetoothProcess_stderr;
     if(bluetoothProcess_stdout.contains("not available"))
     {
         qDebug() << "Device Can Not Be Found";
-        emit isDeviceConnected(false);
+        emit isDeviceConnected(1);
+        bluetoothProcess->close();
     }
-    else if(bluetoothProcess_stdout.contains("Connection Successful"))
+    else if(bluetoothProcess_stdout.contains("Connection successful"))
     {
        qDebug() << "Device Has Been Connected";
-       emit isDeviceConnected(true);
+       emit isDeviceConnected(0);
+       bluetoothProcess->close();
     }
 }
 /** This function is used to disconnect bluetooth devices.
